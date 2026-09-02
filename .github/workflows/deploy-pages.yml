@@ -37,12 +37,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Keep the already-built docs/ (includes generated corpus.json)
+          cp -r docs /tmp/site_out
           git checkout --orphan publish
           git rm -rf -q . || true
-          git checkout ${{ github.sha }} -- docs
-          python build_corpus.py
-          mv docs/* .
-          rmdir docs
+          cp -r /tmp/site_out/* .
           touch .nojekyll
           git add -A
           git commit -m "Deploy Clinical QA demo from ${{ github.sha }}"
