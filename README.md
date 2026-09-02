@@ -1,43 +1,44 @@
 # Clinical Question Answering Model using MIMIC-III & LLMs
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sriya19/Clinical-Question-Answering-Model-using-MIMIC-III-LLMs/blob/claude/elegant-shannon-mpdao6/CLinical%20QA.ipynb)
+An end-to-end clinical QA system using **Retrieval-Augmented Generation (RAG)** over MIMIC-III data. It retrieves relevant clinical evidence and produces citation-grounded answers.
 
-An end-to-end clinical QA system using **Retrieval-Augmented Generation (RAG)** over MIMIC-III data. Sentence-BERT + FAISS retrieve relevant clinical text and OpenAI GPT-4 generates cited answers. The notebook is fully self-contained: it clones this repo for data, so no Google Drive is required.
+## 🔴 Live demo (no install, no API key)
 
-## Run it (one click)
+**▶ https://sriya19.github.io/Clinical-Question-Answering-Model-using-MIMIC-III-LLMs/**
 
-Open the notebook in Colab using the badge above, then run the cells top to bottom.
+A fully in-browser demo: ask a clinical question and it retrieves the most relevant evidence from real MIMIC-III records (via a BM25 ranker) and shows a grounded, cited answer. Runs entirely client-side — nothing to install, no server, no OpenAI key. Perfect for portfolios.
 
-**Direct link (this branch):**
-https://colab.research.google.com/github/sriya19/Clinical-Question-Answering-Model-using-MIMIC-III-LLMs/blob/claude/elegant-shannon-mpdao6/CLinical%20QA.ipynb
+The demo's clinical corpus is built automatically from the MIMIC-III tables in this repo by `build_corpus.py`, and published to GitHub Pages by `.github/workflows/deploy-pages.yml`.
 
-## Where to put your OpenAI API key
+## Full pipeline (Colab notebook + GPT-4)
 
-You need an OpenAI key (`sk-...`) from https://platform.openai.com/api-keys. The notebook reads it in **Cell 3 (“Set your OpenAI API key”)** via one of two ways:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sriya19/Clinical-Question-Answering-Model-using-MIMIC-III-LLMs/blob/main/CLinical%20QA.ipynb)
 
-1. **Colab Secrets (recommended):** in Colab, click the **🔑 key icon** in the left sidebar → **Add new secret** → name it exactly `OPENAI_API_KEY`, paste your key, enable **Notebook access**. The notebook picks it up automatically.
+The notebook runs the complete system — Sentence-BERT + FAISS retrieval, **OpenAI GPT-4** answer generation, a Gradio UI, and BERTScore/ROUGE evaluation. It is self-contained (clones this repo for data, no Google Drive needed).
+
+**Open in Colab:**
+https://colab.research.google.com/github/sriya19/Clinical-Question-Answering-Model-using-MIMIC-III-LLMs/blob/main/CLinical%20QA.ipynb
+
+### Where to put your OpenAI API key
+
+You need an OpenAI key (`sk-...`) from https://platform.openai.com/api-keys. The notebook reads it in **Cell 3 (“Set your OpenAI API key”)** two ways:
+
+1. **Colab Secrets (recommended):** in Colab, click the **🔑 key icon** in the left sidebar → **Add new secret** → name it exactly `OPENAI_API_KEY`, paste your key, enable **Notebook access**.
 2. **Prompt:** if no secret is set, running Cell 3 shows a password box — paste your key there.
 
-The key is never written into the notebook or committed to git.
+The key is never written into the notebook or committed to git. *(The live web demo above needs no key at all.)*
 
 ## How it works
 
-| Step (cell) | What it does |
+| Component | What it does |
 |---|---|
-| 1. Install | Installs `openai`, `faiss-cpu`, `sentence-transformers`, `gradio`, `bert-score`, `rouge-score` |
-| 2. Get data | Clones this repo (all MIMIC-III CSVs are committed here) |
-| 3. API key | Loads your OpenAI key (see above) |
-| 4. Build corpus | Turns structured admissions/diagnoses/procedures into retrievable clinical narratives |
-| 5. Retriever + LLM | Builds a Sentence-BERT + FAISS index and the GPT-4 answer generator |
-| 6. Sample query | Runs one end-to-end question so you can confirm it works |
-| 7. Gradio UI | Interactive app for patient + clinician question pairs |
-| 8. Evaluation | BERTScore + ROUGE against `test.final.json` |
+| `build_corpus.py` | Turns MIMIC-III structured tables (admissions, diagnoses, procedures, patients) into a retrievable clinical corpus |
+| `docs/index.html` | The live browser demo: BM25 retrieval + grounded cited answers, 100% client-side |
+| `CLinical QA.ipynb` | Full pipeline: Sentence-BERT + FAISS retrieval, GPT-4 generation, Gradio UI, BERTScore/ROUGE evaluation |
 
-## Data note (important)
+## Data note
 
-The original system read free-text discharge summaries from `NOTEEVENTS.csv`. That file is **not** in this repo (it requires separate MIMIC-III credentialed download and is very large). So the notebook instead builds an equivalent retrievable corpus from the structured tables that **are** committed here: `ADMISSIONS`, `DIAGNOSES_ICD`, `PROCEDURES_ICD`, `PATIENTS`, and the ICD dictionaries.
-
-If you add `NOTEEVENTS.csv` to the repo, set `USE_NOTEEVENTS = True` in Cell 4 and the notebook will use the real notes (which is required to reproduce the paper's factuality scores against `test.final.json`).
+The original system read free-text discharge summaries from `NOTEEVENTS.csv`, which is **not** in this repo (it needs separate MIMIC-III credentialed download and is very large). Both the demo and the notebook therefore build an equivalent retrievable corpus from the structured tables that **are** committed here. If you later add `NOTEEVENTS.csv`, set `USE_NOTEEVENTS = True` in the notebook's corpus cell to use the real notes (required to reproduce the paper's factuality scores against `test.final.json`).
 
 ## Attribution
 
