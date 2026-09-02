@@ -1,0 +1,49 @@
+name: Build & deploy Clinical QA demo to GitHub Pages
+
+# Builds docs/corpus.json from the MIMIC-III CSVs in the repo, then publishes
+# docs/ to the gh-pages branch, which GitHub Pages serves.
+
+on:
+  push:
+    branches: [main, "claude/elegant-shannon-mpdao6"]
+    paths:
+      - "docs/**"
+      - "build_corpus.py"
+      - ".github/workflows/deploy-pages.yml"
+      - "*.csv"
+      - "*.csv.gz"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install pandas
+      - name: Build corpus.json from repo data
+        run: python build_corpus.py
+      - name: Publish docs/ to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan publish
+          git rm -rf -q . || true
+          git checkout ${{ github.sha }} -- docs
+          python build_corpus.py
+          mv docs/* .
+          rmdir docs
+          touch .nojekyll
+          git add -A
+          git commit -m "Deploy Clinical QA demo from ${{ github.sha }}"
+          git push origin publish:gh-pages --force

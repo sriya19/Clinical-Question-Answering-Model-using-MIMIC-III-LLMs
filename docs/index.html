@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clinical QA — MIMIC-III RAG</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --panel:#ffffff; --panel2:#f0f3fa; --text:#16202e; --muted:#5c6b82;
+    --accent:#0d7d7d; --accent2:#0a5f6b; --border:#dce3ee; --chip:#e8eef7;
+    --evi:#eef6f6; --bar:#0d7d7d; --shadow:0 1px 3px rgba(20,40,80,.08);
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0c1420; --panel:#131e2c; --panel2:#182636; --text:#e7eefb; --muted:#93a4c3;
+    --accent:#2bb3ad; --accent2:#39c7bf; --border:#25344a; --chip:#1c2b3d;
+    --evi:#132a2a; --bar:#2bb3ad; --shadow:0 1px 3px rgba(0,0,0,.3);
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0c1420; --panel:#131e2c; --panel2:#182636; --text:#e7eefb; --muted:#93a4c3;
+    --accent:#2bb3ad; --accent2:#39c7bf; --border:#25344a; --chip:#1c2b3d;
+    --evi:#132a2a; --bar:#2bb3ad; --shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:28px 16px 60px;line-height:1.55}
+  .wrap{max-width:840px;margin:0 auto}
+  header{text-align:center;margin-bottom:22px}
+  header h1{font-size:1.75rem;letter-spacing:.2px}
+  header h1 span{color:var(--accent)}
+  header p{color:var(--muted);margin-top:8px;font-size:.95rem}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:var(--shadow)}
+  label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:8px;font-weight:600}
+  textarea{width:100%;padding:12px 14px;border-radius:10px;background:var(--panel2);color:var(--text);border:1px solid var(--border);font-size:1rem;font-family:inherit;resize:vertical;min-height:64px}
+  button.ask{width:100%;margin-top:14px;padding:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-weight:700;font-size:1rem;border:none;border-radius:10px;cursor:pointer;transition:transform .08s}
+  button.ask:hover{transform:translateY(-1px)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .chip{background:var(--chip);border:1px solid var(--border);color:var(--text);font-size:.82rem;padding:7px 11px;border-radius:20px;cursor:pointer;transition:background .15s}
+  .chip:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+  #results{display:none}
+  .answer{font-size:1.02rem}
+  .answer .cite{color:var(--accent);font-weight:700;font-size:.82em;vertical-align:super}
+  h3{font-size:.9rem;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:12px;font-weight:600}
+  .evi{background:var(--evi);border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:10px}
+  .evi .top{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:6px}
+  .evi .num{background:var(--accent);color:#fff;font-weight:700;font-size:.75rem;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .evi .adm{font-size:.72rem;color:var(--muted);font-family:ui-monospace,monospace}
+  .evi .txt{font-size:.93rem}
+  .barrow{display:flex;align-items:center;gap:8px;margin-top:7px}
+  .bar{height:5px;background:var(--bar);border-radius:3px}
+  .barlabel{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
+  .loading{color:var(--muted);text-align:center;padding:10px}
+  .err{color:#e06060;text-align:center;padding:8px;display:none}
+  footer{color:var(--muted);font-size:.82rem;margin-top:26px;line-height:1.7;text-align:center}
+  footer a{color:var(--accent)}
+  .pipe{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0}
+  .pipe span{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:4px 10px;font-size:.72rem}
+  .badge{display:inline-block;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:2px 8px;font-size:.72rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🏥 Clinical <span>Question Answering</span></h1>
+    <p>Retrieval-Augmented Generation over real MIMIC-III records · runs entirely in your browser</p>
+    <div class="pipe">
+      <span>MIMIC-III structured data</span><span>→ clinical corpus</span><span>→ BM25 retrieval</span><span>→ grounded cited answer</span>
+    </div>
+  </header>
+
+  <div class="card">
+    <label for="q">Ask a clinical question</label>
+    <textarea id="q" placeholder="e.g. What coronary procedure was performed and why?"></textarea>
+    <button class="ask" id="ask">Retrieve &amp; answer</button>
+    <div class="chips" id="examples"></div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="card" id="results">
+    <h3>Grounded answer</h3>
+    <p class="answer" id="answer"></p>
+    <div style="margin-top:20px"><h3>Retrieved clinical evidence</h3><div id="evidence"></div></div>
+  </div>
+
+  <footer>
+    <p><span class="badge" id="stat">loading corpus…</span></p>
+    <p style="margin-top:10px">
+      This demo builds a searchable clinical corpus from MIMIC-III structured tables (admissions,
+      diagnoses, procedures, patients), retrieves the most relevant facts with a BM25 ranker, and
+      composes a citation-grounded answer — with <strong>no server and no API key</strong>.
+      The full pipeline with OpenAI GPT-4 answer generation and BERTScore/ROUGE evaluation is in the
+      <a href="https://github.com/sriya19/Clinical-Question-Answering-Model-using-MIMIC-III-LLMs" target="_blank" rel="noopener">notebook</a>.
+    </p>
+    <p style="margin-top:8px">Data: MIMIC-III (PhysioNet) · Sentence-BERT + FAISS + GPT-4 in the notebook · citations reference the source admission ID.</p>
+  </footer>
+</div>
+
+<script>
+const STOP=new Set("a an the of to in on for with and or is was were be been being at from by as this that patient".split(" "));
+let SENTS=[], DOCS=[], IDF={}, AVGDL=0, READY=false;
+
+function tok(s){return s.toLowerCase().match(/[a-z0-9]+/g)?.filter(w=>!STOP.has(w)&&w.length>1)||[]}
+
+function buildIndex(sents){
+  SENTS=sents; DOCS=sents.map(s=>tok(s.t));
+  const N=DOCS.length; let tot=0; const df={};
+  DOCS.forEach(d=>{tot+=d.length; new Set(d).forEach(w=>df[w]=(df[w]||0)+1)});
+  AVGDL=tot/N;
+  for(const w in df) IDF[w]=Math.log(1+(N-df[w]+0.5)/(df[w]+0.5));
+  READY=true;
+}
+const K1=1.5,B=0.75;
+function score(qt,d){
+  if(!d.length) return 0;
+  const tf={}; d.forEach(w=>tf[w]=(tf[w]||0)+1); const dl=d.length; let s=0;
+  qt.forEach(w=>{if(tf[w]){s+=(IDF[w]||0)*(tf[w]*(K1+1))/(tf[w]+K1*(1-B+B*dl/AVGDL))}});
+  return s;
+}
+function search(q,topk){
+  const qt=tok(q);
+  const scored=DOCS.map((d,i)=>({i,s:score(qt,d)})).filter(x=>x.s>0).sort((a,b)=>b.s-a.s).slice(0,topk);
+  return scored.map(x=>({text:SENTS[x.i].t,adm:SENTS[x.i].h,score:x.s}));
+}
+
+function composeAnswer(q, hits){
+  if(!hits.length) return "No matching clinical evidence was found in the indexed records for this question. Try rephrasing with a condition, procedure, or symptom.";
+  const lead=hits[0];
+  let parts=[];
+  parts.push(`Based on the retrieved MIMIC-III records, the most relevant evidence is: "${lead.text}"<span class="cite">[1]</span>`);
+  const extra=hits.slice(1,4).map((h,i)=>`${h.text.replace(/\.$/,'')}<span class="cite">[${i+2}]</span>`);
+  if(extra.length) parts.push("Supporting findings include: "+extra.join("; ")+".");
+  parts.push(`These facts are drawn from ${new Set(hits.map(h=>h.adm)).size} distinct hospital admission(s); each citation links to its source admission ID below.`);
+  return parts.join(" ");
+}
+
+function render(q){
+  const err=document.getElementById("err"); err.style.display="none";
+  if(!READY){err.textContent="Corpus still loading, one moment…";err.style.display="block";return;}
+  if(!q.trim()){err.textContent="Please enter a clinical question.";err.style.display="block";return;}
+  const hits=search(q,6);
+  document.getElementById("answer").innerHTML=composeAnswer(q,hits);
+  const maxS=hits.length?hits[0].score:1;
+  document.getElementById("evidence").innerHTML=hits.map((h,i)=>`
+    <div class="evi">
+      <div class="top"><span class="num">${i+1}</span><span class="adm">admission ${h.adm}</span></div>
+      <div class="txt">${h.text}</div>
+      <div class="barrow"><div class="bar" style="width:${Math.max(8,h.score/maxS*100)}%"></div><span class="barlabel">BM25 ${h.score.toFixed(2)}</span></div>
+    </div>`).join("") || '<p class="loading">No evidence found.</p>';
+  document.getElementById("results").style.display="block";
+}
+
+const EXAMPLES=[
+  "What coronary procedure was performed and why?",
+  "Why was the patient admitted for a benzodiazepine overdose?",
+  "What was done for a patient with sepsis?",
+  "kidney failure and dialysis",
+  "diabetes with complications",
+];
+const exWrap=document.getElementById("examples");
+EXAMPLES.forEach(e=>{const c=document.createElement("span");c.className="chip";c.textContent=e;c.onclick=()=>{document.getElementById("q").value=e;render(e)};exWrap.appendChild(c)});
+
+document.getElementById("ask").onclick=()=>render(document.getElementById("q").value);
+document.getElementById("q").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))render(e.target.value)});
+
+fetch("corpus.json").then(r=>r.json()).then(d=>{
+  buildIndex(d.sentences);
+  document.getElementById("stat").textContent=
+    `${d.sentences.length.toLocaleString()} clinical facts indexed from ${d.n_admissions.toLocaleString()} MIMIC-III admissions`;
+}).catch(e=>{
+  const err=document.getElementById("err");err.textContent="Failed to load corpus.json: "+e.message;err.style.display="block";
+});
+</script>
+</body>
+</html>
